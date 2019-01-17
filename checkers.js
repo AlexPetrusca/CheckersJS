@@ -1,6 +1,6 @@
 /* Game of Checkers */
 
-// board representation: bit board with piece tables
+// board representation: array board with piece tables
 let board = [
     [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
     [-1,  0, 13,  0, 14,  0, 15,  0, 16, -1], // 7 row
@@ -180,7 +180,7 @@ function drawPiece(piece) {
         const x = piece.x * SQUARE_WIDTH;
         const y = (7 - piece.y) * SQUARE_WIDTH;
         ellipse(x + SQUARE_WIDTH / 2, y + SQUARE_WIDTH / 2, SQUARE_WIDTH - 12, SQUARE_WIDTH - 12);
-        if(piece.king) {
+        if (piece.king) {
             noFill();
             stroke(247, 191, 51);
             rect(x + SQUARE_WIDTH / 2 - 10, y + SQUARE_WIDTH / 2 - 10, 20, 20);
@@ -247,21 +247,13 @@ function getAllMoves() {
 }
 
 function getAllMovesWhite() {
-    let moves = [];
-    if(lastJumpX !== -1) {
-        let piece = getPiece(lastJumpX, lastJumpY);
-        addMovesInDirection(moves, piece, 1, 1, "B");
-        addMovesInDirection(moves, piece, -1, 1, "B");
-        if (getPiece(piece.x, piece.y).king) {
-            addMovesInDirection(moves, piece, 1, -1, "B");
-            addMovesInDirection(moves, piece, -1, -1, "B");
-        }
-    } else {
+    let moves = getAllCapturesWhite();
+    if (moves.length === 0) {
         for (const piece of whitePieces) {
             if (!piece.captured) {
                 addMovesInDirection(moves, piece, 1, 1, "B");
                 addMovesInDirection(moves, piece, -1, 1, "B");
-                if (getPiece(piece.x, piece.y).king) {
+                if (piece.king) {
                     addMovesInDirection(moves, piece, 1, -1, "B");
                     addMovesInDirection(moves, piece, -1, -1, "B");
                 }
@@ -272,25 +264,61 @@ function getAllMovesWhite() {
 }
 
 function getAllMovesBlack() {
+    let moves = getAllCapturesBlack();
+    if (moves.length === 0) {
+        for (const piece of blackPieces) {
+            if (!piece.captured) {
+                addMovesInDirection(moves, piece, 1, -1, "W");
+                addMovesInDirection(moves, piece, -1, -1, "W");
+                if (piece.king) {
+                    addMovesInDirection(moves, piece, 1, 1, "W");
+                    addMovesInDirection(moves, piece, -1, 1, "W");
+                }
+            }
+        }
+    }
+    return moves;
+}
+
+function getMoveCountWhite() {
+    return getAllMovesWhite().length;
+}
+
+function getMoveCountBlack() {
+    return getAllMovesBlack().length;
+}
+
+function getAllCaptures() {
+    if (whiteToMove) {
+        return getAllCapturesWhite();
+    } else {
+        return getAllCapturesBlack();
+    }
+}
+
+function getAllCapturesWhite() {
+    let moves = [];
+    if(lastJumpX !== -1) {
+        let piece = getPiece(lastJumpX, lastJumpY);
+        addMovesInDirection(moves, piece, 1, 1, "B");
+        addMovesInDirection(moves, piece, -1, 1, "B");
+        if (piece.king) {
+            addMovesInDirection(moves, piece, 1, -1, "B");
+            addMovesInDirection(moves, piece, -1, -1, "B");
+        }
+    }
+    return moves;
+}
+
+function getAllCapturesBlack() {
     let moves = [];
     if(lastJumpX !== -1) {
         let piece = getPiece(lastJumpX, lastJumpY);
         addMovesInDirection(moves, piece, 1, -1, "W");
         addMovesInDirection(moves, piece, -1, -1, "W");
-        if (getPiece(piece.x, piece.y).king) {
+        if (piece.king) {
             addMovesInDirection(moves, piece, 1, 1, "W");
             addMovesInDirection(moves, piece, -1, 1, "W");
-        }
-    } else {
-        for (const piece of blackPieces) {
-            if (!piece.captured) {
-                addMovesInDirection(moves, piece, 1, -1, "W");
-                addMovesInDirection(moves, piece, -1, -1, "W");
-                if (getPiece(piece.x, piece.y).king) {
-                    addMovesInDirection(moves, piece, 1, 1, "W");
-                    addMovesInDirection(moves, piece, -1, 1, "W");
-                }
-            }
         }
     }
     return moves;
@@ -334,10 +362,10 @@ function addMovesInDirection(moves, piece, dirX, dirY, col) {
     if (hasPiece(x + dirX, y + dirY)) { // if has piece
         const toJump = getPiece(x + dirX, y + dirY);
         if (toJump.color === col && isBlank(x + 2 * dirX, y + 2 * dirY)) { // if can jump piece
-            moves.push({ fromX: x, fromY: y, toX: x + 2 * dirX, toY: y + 2 * dirY, wasKing: piece.king, state: getState(), killNum: getNum(x + dirX, y + dirY) });
+            moves.push({ fromX: x, fromY: y, toX: x + 2 * dirX, toY: y + 2 * dirY, wasKing: piece.king, state: getState(), killNum: getNum(x + dirX, y + dirY), score: NaN, ordder: NaN });
         }
     } else if (isBlank(x + dirX, y + dirY) && !mustJump) { // if is blank
-        moves.push({ fromX: x, fromY: y, toX: x + dirX, toY: y + dirY, wasKing: piece.king, state: getState() });
+        moves.push({ fromX: x, fromY: y, toX: x + dirX, toY: y + dirY, wasKing: piece.king, state: getState(), killNum: -1, score: NaN, order: NaN });
     }
 }
 
@@ -414,7 +442,7 @@ function mustJumpWhite() {
         let piece = getPiece(lastJumpX, lastJumpY);
         if (mustJumpInDirection(piece.x, piece.y, 1, 1, "B")) return true;
         if (mustJumpInDirection(piece.x, piece.y, -1, 1, "B")) return true;
-        if (getPiece(piece.x, piece.y).king) {
+        if (piece.king) {
             if (mustJumpInDirection(piece.x, piece.y, 1, -1, "B")) return true;
             if (mustJumpInDirection(piece.x, piece.y, -1, -1, "B")) return true;
         }
@@ -423,7 +451,7 @@ function mustJumpWhite() {
             if (!piece.captured) {
                 if (mustJumpInDirection(piece.x, piece.y, 1, 1, "B")) return true;
                 if (mustJumpInDirection(piece.x, piece.y, -1, 1, "B")) return true;
-                if (getPiece(piece.x, piece.y).king) {
+                if (piece.king) {
                     if (mustJumpInDirection(piece.x, piece.y, 1, -1, "B")) return true;
                     if (mustJumpInDirection(piece.x, piece.y, -1, -1, "B")) return true;
                 }
@@ -438,7 +466,7 @@ function mustJumpBlack() {
         let piece = getPiece(lastJumpX, lastJumpY);
         if (mustJumpInDirection(piece.x, piece.y, 1, -1, "W")) return true;
         if (mustJumpInDirection(piece.x, piece.y, -1, -1, "W")) return true;
-        if (getPiece(piece.x, piece.y).king) {
+        if (piece.king) {
             if (mustJumpInDirection(piece.x, piece.y, 1, 1, "W")) return true;
             if (mustJumpInDirection(piece.x, piece.y, -1, 1, "W")) return true;
         }
@@ -447,7 +475,7 @@ function mustJumpBlack() {
             if (!piece.captured) {
                 if (mustJumpInDirection(piece.x, piece.y, 1, -1, "W")) return true;
                 if (mustJumpInDirection(piece.x, piece.y, -1, -1, "W")) return true;
-                if (getPiece(piece.x, piece.y).king) {
+                if (piece.king) {
                     if (mustJumpInDirection(piece.x, piece.y, 1, 1, "W")) return true;
                     if (mustJumpInDirection(piece.x, piece.y, -1, 1, "W")) return true;
                 }
@@ -520,7 +548,7 @@ function movePiece(piece, move) {
     board[8 - move.toY][move.toX + 1] = value;
 
     // kill jumped piece
-    if (typeof move.killNum !== 'undefined') {
+    if (move.killNum !== -1) {
         let kill = getPieceByNum(move.killNum);
         kill.captured = true;
         board[8 - kill.y][kill.x + 1] = 0;
@@ -566,7 +594,7 @@ function unmovePiece(piece, move) {
     board[8 - move.fromY][move.fromX + 1] = value;
 
     // revive jumped piece
-    if (typeof move.killNum !== 'undefined') {
+    if (move.killNum !== -1) {
         let kill = getPieceByNum(move.killNum);
         kill.captured = false;
         board[8 - kill.y][kill.x + 1] = move.killNum;
@@ -682,6 +710,10 @@ function isWhite(x, y) {
 function isBlack(x, y) {
     const num = board[8 - y][x + 1];
     return num >= 13 && num <= 24;
+}
+
+function isKing(x, y) {
+    return getPiece(x, y).king;
 }
 
 function getNum(x, y) {
